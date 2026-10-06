@@ -1,7 +1,11 @@
+.venv/
 venv/
 __pycache__/
-*.pyc
+*.py[cod]
 .env
+*.env
+!sample.env
 data/qdrant_db/
 *.log
 .DS_Store
+.vscode/
