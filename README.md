@@ -4,25 +4,32 @@ A retrieval-augmented generation (RAG) application that helps technicians troubl
 
 ## Problem
 
-Manufacturing troubleshooting often requires searching long technical manuals for the right procedure. This project turns that workflow into a semantic search and grounded-answer pipeline.
+Manufacturing troubleshooting often requires searching long technical manuals for the right procedure. This project turns that workflow into a semantic-search and grounded-answer pipeline.
 
 ## How It Works
 
 ```text
 Industrial PDF Manuals
-        ↓
+        |
+        v
 Text Extraction & Cleaning
-        ↓
-Chunking
-        ↓
+        |
+        v
+Recursive Chunking
+        |
+        v
 Sentence-Transformer Embeddings
-        ↓
-Qdrant Vector Database
-        ↓
+        |
+        v
+Local Qdrant Vector Store
+        |
+        v
 Top-K Semantic Retrieval
-        ↓
-Local LLM (Ollama)
-        ↓
+        |
+        v
+Ollama + TinyLlama
+        |
+        v
 Grounded Troubleshooting Response
 ```
 
@@ -32,29 +39,32 @@ Grounded Troubleshooting Response
 
 > Conveyor belt is not moving
 
-The system retrieves relevant manual sections and uses the retrieved context to generate a structured troubleshooting response.
+The system retrieves relevant sections from the indexed manuals and passes the retrieved context to a local LLM to produce a concise troubleshooting response.
 
 ## Key Features
 
-- PDF ingestion for industrial manuals
-- Text cleaning and document chunking
-- Local embedding generation with Sentence Transformers
-- Persistent vector storage with Qdrant
+- PDF ingestion for industrial equipment manuals
+- Text cleaning and chunk filtering
+- Recursive character-based chunking with overlap
+- Sentence Transformer embeddings using `all-MiniLM-L6-v2`
+- Persistent local Qdrant vector storage with cosine similarity
 - Top-K semantic retrieval
-- Local LLM inference with Ollama
+- Grounded local LLM generation through Ollama
 - Streamlit interface
 - CLI query pipeline
-- Separation of ingestion, retrieval, and generation components
+- Separate ingestion, retrieval, vector-store, and generation modules
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
 | Language | Python |
-| Document processing | LangChain |
+| PDF processing | LangChain Community + PyPDF |
+| Chunking | LangChain Text Splitters |
 | Embeddings | Sentence Transformers |
 | Vector database | Qdrant |
 | LLM runtime | Ollama |
+| Local model | TinyLlama |
 | UI | Streamlit |
 
 ## Project Structure
@@ -63,8 +73,9 @@ The system retrieves relevant manual sections and uses the retrieved context to 
 manufacturing-rag/
 ├── app/
 │   └── streamlit_app.py
-├── config/
 ├── data/
+│   └── raw/
+│       └── *.pdf
 ├── src/
 │   ├── ingestion/
 │   ├── chunking/
@@ -73,44 +84,59 @@ manufacturing-rag/
 │   ├── retrieval/
 │   ├── generation/
 │   └── pipeline/
-├── utils/
 ├── requirements.txt
 └── README.md
 ```
 
 ## Run Locally
 
-### 1. Create an environment
+### 1. Create and activate a virtual environment
 
 ```bash
-python -m venv venv
+python -m venv .venv
 ```
 
-Windows:
+Windows PowerShell:
 
 ```powershell
-venv\Scripts\activate
+.venv\Scripts\Activate.ps1
 ```
 
-### 2. Install dependencies
+### 2. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Ingest the manuals
+### 3. Install Ollama and pull the local model
+
+Install Ollama, then make sure the model used by the application is available:
+
+```bash
+ollama pull tinyllama
+```
+
+Keep the Ollama service running while querying the application.
+
+### 4. Build the local vector index
+
+Place the equipment manuals under `data/raw/`, then run:
 
 ```bash
 python -m src.pipeline.ingest
 ```
 
-### 4. Run the query pipeline
+This extracts and cleans the PDFs, creates chunks, generates embeddings, and stores them in the local Qdrant database under `data/qdrant_db/`.
+
+### 5. Query from the CLI
 
 ```bash
 python -m src.pipeline.query
 ```
 
-### 5. Launch the UI
+Type a troubleshooting question and enter `exit` to stop.
+
+### 6. Launch the Streamlit interface
 
 ```bash
 streamlit run app/streamlit_app.py
@@ -118,16 +144,25 @@ streamlit run app/streamlit_app.py
 
 ## Engineering Notes
 
-The project uses local models and a local vector database, so the complete RAG pipeline can run without a paid LLM API.
+- The vector database runs locally using Qdrant's persistent local storage.
+- Embeddings are generated locally with `all-MiniLM-L6-v2`.
+- Answer generation uses Ollama, so no paid LLM API is required.
+- The application is designed around document-grounded responses and instructs the local model to use only retrieved context.
 
-Current limitations include OCR noise in some PDF content and the response-quality constraints of small local language models.
+## Limitations
+
+- PDF extraction quality depends on the source manuals and can contain OCR or formatting noise.
+- The quality of generated answers is constrained by the local language model.
+- Retrieval is currently evaluated qualitatively rather than with a formal benchmark.
+- The application currently uses a fixed collection name and retrieval depth.
 
 ## Future Improvements
 
 - Metadata-aware retrieval and filtering
-- Better document cleaning/OCR handling
-- Retrieval evaluation and relevance metrics
+- Better OCR and document cleaning
+- Retrieval evaluation with precision/recall or relevance metrics
 - Conversation history
+- Reranking for improved retrieval quality
 - Stronger local or hosted LLMs
 - Production deployment
 
